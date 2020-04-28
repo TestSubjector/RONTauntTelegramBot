@@ -40,7 +40,13 @@ def help(update, context):
 
 def echo(update, context):
     """Echo the user message."""
-    stringParser = update.message.text.lower().split()
+    messageString = update.message.text
+    
+    # Stop evaluating larger messages
+    if len(messageString) > 10:
+        return
+    
+    stringParser = messageString.lower().split()
     storeTaunts = {
     1: "taunts/.wav",
     2: "taunts/.wav",
