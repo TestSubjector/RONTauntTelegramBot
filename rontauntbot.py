@@ -1,33 +1,35 @@
 #!/usr/bin/env python
-# -*- coding: utf-8 -*-
-# This program is dedicated to the public domain under the CC0 license.
 
-"""
-Simple Bot to reply to Telegram messages.
-
-First, a few handler functions are defined. Then, those functions are passed to
-the Dispatcher and registered at their respective places.
-Then, the bot is started and runs until we press Ctrl-C on the command line.
-
-Usage:
-Basic Echobot example, repeats messages.
-Press Ctrl-C on the command line or send a signal to the process to stop the
-bot.
-"""
-
-import logging
-
-from telegram.ext import Updater, CommandHandler, MessageHandler, Filters
+import logging, random, json
+from telegram.ext import CommandHandler, MessageHandler, Filters, DelayQueue, Updater
+from telegram.error import (TelegramError, Unauthorized, BadRequest, 
+                            TimedOut, ChatMigrated, NetworkError, RetryAfter)
+import telegram.bot
+from telegram.utils.request import Request
 
 # Enable logging
 logging.basicConfig(format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
                     level=logging.INFO)
 
 logger = logging.getLogger(__name__)
+dqueue1 = DelayQueue(burst_limit=20, time_limit_ms=60000)
 
+def error_callback(update, context):
+    try:
+        raise context.error
+    except Unauthorized:
+        print(update)
+    except BadRequest:
+        print("# handle malformed requests - read more below!")
+    except TimedOut:
+        print("# handle slow connection problems")
+    except NetworkError:
+        print("# handle other connection problems")
+    except RetryAfter:
+        print("Rate Limited")
+    except TelegramError:
+        print("Telegram Error happened")
 
-# Define a few command handlers. These usually take the two arguments update and
-# context. Error handlers also receive the raised TelegramError object in error.
 def start(update, context):
     """Send a message when the command /start is issued."""
     update.message.reply_text('Hi!')
@@ -43,8 +45,9 @@ def echo(update, context):
     messageString = update.message.text
     
     # Stop evaluating larger messages
-    if len(messageString) > 10:
+    if len(messageString) > 20:
         return
+        
     
     stringParser = messageString.lower().split()
     storeTaunts = {
@@ -150,12 +153,21 @@ def echo(update, context):
     100: "taunts/keep_risin-1.wav"}
      
     if stringParser[0] == "taunt":
-        if stringParser[1].isnumeric() == True:
-            tauntIndex = int(stringParser[1])
-            if tauntIndex > 0 and tauntIndex <101: 
+        for itm in stringParser[1:]:
+            if itm.isnumeric() == True:
+                tauntIndex = int(itm)
+                if tauntIndex in storeTaunts.keys():
+                    tauntVoice = storeTaunts.get(tauntIndex)
+                    # context.bot.send_message(chat_id=update.effective_chat.id, text=tauntVoice)
+                    dqueue1(context.bot.send_voice,chat_id=update.effective_chat.id, voice = open(tauntVoice, 'rb'))
+                else:
+                    dqueue1(context.bot.send_message(chat_id=update.effective_chat.id, text="Sorry I don't know that taunt."))
+            elif itm == "random":
+                tauntIndex = random.choice(list(storeTaunts.keys()))
                 tauntVoice = storeTaunts.get(tauntIndex)
-                # context.bot.send_message(chat_id=update.effective_chat.id, text=tauntVoice)
-                context.bot.send_voice(chat_id=update.effective_chat.id, voice = open(tauntVoice, 'rb'))
+                dqueue1(context.bot.send_voice,chat_id=update.effective_chat.id, voice = open(tauntVoice, 'rb'))
+                break
+            
 
 
 def error(update, context):
@@ -165,13 +177,12 @@ def error(update, context):
 
 def main():
     """Start the bot."""
-    # Create the Updater and pass it your bot's token.
-    # Make sure to set use_context=True to use the new context based callbacks
-    # Post version 12 this will no longer be necessary
-    bot_token_file = open("bot_token.txt", "r")
-    bot_token = bot_token_file.read()
-    bot_token_file.close()
-    updater = Updater(bot_token, use_context=True)
+    config = json.loads(open("config.json").read())
+    if not config["bot_token"] == "<your token here>":
+        updater = Updater(config["bot_token"], use_context=True)
+    else:
+        print("Missing Bot Token")
+        exit()
 
     # Get the dispatcher to register handlers
     dp = updater.dispatcher
@@ -179,6 +190,9 @@ def main():
     # on different commands - answer in Telegram
     dp.add_handler(CommandHandler("start", start))
     dp.add_handler(CommandHandler("help", help))
+
+    # error handler
+    dp.add_error_handler(error_callback)
 
     # on noncommand i.e message - echo the message on Telegram
     dp.add_handler(MessageHandler(Filters.text, echo))
