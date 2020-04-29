@@ -116,7 +116,7 @@ def echo(update, context):
     66: "taunts/ahh-1.wav",
     67: "taunts/uhh_uhh-1.wav",
     68: "taunts/ohhh-4.wav",
-    69: "taunts/.wav",
+    69: "taunts/uhhh-2.wav",
     70: "taunts/unh-3.wav",
     71: "taunts/doomed-1.wav",
     72: "taunts/wanngiveup-2.wav",
