@@ -42,12 +42,15 @@ def help(update, context):
 
 def echo(update, context):
     """Echo the user message."""
-    messageString = update.message.text
-    
-    # Stop evaluating larger messages
-    if len(messageString) > 20:
+    try:
+        messageString = update.message.text
+    except:
+        print("Unsupported message format")
         return
-        
+
+    # Stop evaluating larger messages
+    if not messageString.lower().startswith("taunt"):
+        return
     
     stringParser = messageString.lower().split()
     storeTaunts = {
